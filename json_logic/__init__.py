@@ -65,13 +65,38 @@ def jsonLogic(tests, data=None):
     "count": (lambda *args: sum(1 if a else 0 for a in args)),
   }
 
-  if op not in operations:
-    raise ValueError("Unrecognized operation %s" % op)
-
   # Easy syntax for unary operators, like {"var": "x"} instead of strict
   # {"var": ["x"]}
   if type(values) not in [list, tuple]:
     values = [values]
+
+  # Check for 'if' operation- cannot be evaluated in lambda expressions
+  if op == 'if':
+    '''
+    'if' should be called with a odd number of parameters, 3 or greater
+    This works on the pattern:
+    if( 0 ){ 1 }else{ 2 };
+    if( 0 ){ 1 }else if( 2 ){ 3 }else{ 4 };
+    if( 0 ){ 1 }else if( 2 ){ 3 }else if( 4 ){ 5 }else{ 6 };
+    The implementation is:
+    For pairs of values (0,1 then 2,3 then 4,5 etc)
+    If the first evaluates truthy, evaluate and return the second
+    If the first evaluates falsy, jump to the next pair (e.g, 0,1 to 2,3)
+    given one parameter, evaluate and return it. (it's an Else and all the If/ElseIf were false)
+    given 0 parameters, return None
+    '''
+    i = 0
+    while i < len(values) - 1:
+      if jsonLogic(values[i], data) == True:
+        return jsonLogic(values[i + 1], data)
+      i += 2
+      if len(values) == i + 1:
+        return jsonLogic(values[i], data)
+      else:
+        return None
+
+  if op not in operations:
+    raise ValueError("Unrecognized operation %s" % op)
 
   # Recursion!
   values = map(lambda val: jsonLogic(val, data), values)
